@@ -10,6 +10,7 @@ import (
 
 	"github.com/bootdotdev/learn-web-security/internal/accounts"
 	"github.com/bootdotdev/learn-web-security/internal/auth/mfa"
+	"github.com/bootdotdev/learn-web-security/internal/auth/passwords"
 	"github.com/bootdotdev/learn-web-security/internal/auth/sessions"
 	"github.com/bootdotdev/learn-web-security/internal/httpx"
 	"github.com/bootdotdev/learn-web-security/internal/logging"
@@ -73,6 +74,16 @@ func (handler *Handler) UpdateEmail(responseWriter http.ResponseWriter, request 
 	if !ok || !handler.verifyCSRF(responseWriter, request, current.Session.CSRFToken) {
 		return
 	}
+	password, passwordErr := httpx.FormValue(request, "currentPassword")
+	if passwordErr != nil {
+		handler.renderPage(responseWriter, http.StatusForbidden, current, "Please enter your current password")
+		return
+	}
+	if !passwords.Verify(password, current.User.PasswordHash) {
+		handler.renderPage(responseWriter, http.StatusForbidden, current, "Please enter your current password")
+		return
+	}
+
 	email, emailErr := httpx.FormValue(request, "email")
 	if emailErr != nil {
 		handler.errorPage(responseWriter, http.StatusBadRequest, "Invalid Request", "The submitted form is invalid.")
@@ -85,7 +96,9 @@ func (handler *Handler) UpdateEmail(responseWriter http.ResponseWriter, request 
 		}
 		return
 	}
+
 	existingUser, found, err := handler.accountStore.FindUserByEmail(request.Context(), email)
+
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
 		return
@@ -96,6 +109,7 @@ func (handler *Handler) UpdateEmail(responseWriter http.ResponseWriter, request 
 		}
 		return
 	}
+
 	if err := handler.accountStore.UpdateEmail(request.Context(), current.User.ID, email); errors.Is(err, accounts.ErrEmailExists) {
 		if renderErr := handler.renderPage(responseWriter, http.StatusConflict, current, "Email is already in use."); renderErr != nil {
 			handler.internalError(responseWriter, request, renderErr)
@@ -105,6 +119,7 @@ func (handler *Handler) UpdateEmail(responseWriter http.ResponseWriter, request 
 		handler.internalError(responseWriter, request, err)
 		return
 	}
+
 	http.Redirect(responseWriter, request, "/account", http.StatusFound)
 }
 
