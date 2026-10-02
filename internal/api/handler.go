@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/bootdotdev/learn-web-security/internal/accounts"
 	"github.com/bootdotdev/learn-web-security/internal/auth/sessions"
@@ -95,6 +96,24 @@ func (handler *Handler) Products(responseWriter http.ResponseWriter, request *ht
 }
 
 func (handler *Handler) WarehouseOrders(responseWriter http.ResponseWriter, request *http.Request) {
+	key := request.Header.Get("X-API-Key")
+	result, found, err := handler.apiStore.FindKey(request.Context(), key)
+
+	if err != nil {
+		handler.internalError(responseWriter, request, err)
+		return
+	}
+
+	if !found {
+		httpx.RespondWithJSON(responseWriter, http.StatusUnauthorized, map[string]string{"error": "Missing or invalid key"})
+		return
+	}
+
+	if !strings.Contains(result.Scope, "orders:read") {
+		httpx.RespondWithJSON(responseWriter, http.StatusForbidden, map[string]string{"error": "Unauthorized"})
+		return
+	}
+
 	orders, err := handler.orderStore.ListAll(request.Context())
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
