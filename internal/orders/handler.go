@@ -63,19 +63,22 @@ func (handler *Handler) Detail(responseWriter http.ResponseWriter, request *http
 		return
 	}
 	orderID, valid := httpx.ParseSafeInteger(request.PathValue("id"))
+
 	if !valid {
 		handler.orderNotFound(responseWriter)
 		return
 	}
+
 	order, found, err := handler.orderStore.FindByID(request.Context(), orderID)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
 		return
 	}
-	if !found {
+	if !found || order.UserID != current.User.ID {
 		handler.orderNotFound(responseWriter)
 		return
 	}
+
 	orderItems, err := handler.orderStore.ListItems(request.Context(), order.ID)
 	if err != nil {
 		handler.internalError(responseWriter, request, err)
